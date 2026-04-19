@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+
+# runtime
+uploads/*
+!uploads/.gitkeep
+*.log
+tmp/
+.cache/
+
+# editors
+.DS_Store
+.vscode/
+.idea/
+
+# build output (none currently, but safe to have)
+dist/
+build/
