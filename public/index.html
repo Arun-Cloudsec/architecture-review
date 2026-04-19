@@ -1,1 +1,1449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ATLAS · Cloud Architecture Review Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0E1016; --bg-elev:#151823; --bg-card:#1B1E2B; --bg-hover:#21253A; --bg-input:#0F121A;
+  --border:rgba(255,255,255,0.07); --border-str:rgba(255,255,255,0.14); --border-focus:rgba(255,184,77,0.45);
+  --text:#E4E6F0; --text-muted:#8D92A6; --text-faint:#5B6178; --text-dim:#3E4356;
+  --a:#FFB84D; --b:#FF7B5B; --c:#6EE7B7; --d:#7DD3FC;
+  --crit:#FF4D6D; --high:#FF8B3D; --med:#FFD54F; --low:#9FE88F;
+  --sidebar-w:240px; --topbar-h:56px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:'IBM Plex Sans',-apple-system,sans-serif;color:var(--text);background:var(--bg);line-height:1.5;font-size:13.5px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+::selection{background:var(--a);color:#1A1005}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.06);border-radius:10px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.12);background-clip:content-box;border:2px solid transparent}
 
+.app{display:grid;grid-template-rows:var(--topbar-h) 1fr;height:100vh}
+
+/* TOP BAR */
+.topbar{display:grid;grid-template-columns:var(--sidebar-w) 1fr auto;align-items:center;background:var(--bg-elev);border-bottom:1px solid var(--border);height:var(--topbar-h);position:relative;z-index:20}
+.brand{display:flex;align-items:center;gap:12px;padding:0 20px;height:100%;border-right:1px solid var(--border)}
+.brand svg{width:24px;height:24px}
+.brand-text{font-family:'Instrument Serif',serif;font-size:20px;font-style:italic;letter-spacing:0.5px;color:var(--text)}
+.brand-sub{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:1.5px;color:var(--text-faint);text-transform:uppercase;padding-left:10px;margin-left:4px;border-left:1px solid var(--border)}
+.topbar-center{display:flex;align-items:center;gap:16px;padding:0 24px}
+.breadcrumb{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--text-muted)}
+.breadcrumb-sep{color:var(--text-dim);font-size:11px}
+.breadcrumb-current{color:var(--text);font-weight:500}
+.topbar-right{display:flex;align-items:center;gap:12px;padding-right:16px}
+.provider-chip{display:flex;align-items:center;gap:10px;padding:5px 12px;border:1px solid var(--border);border-radius:20px;font-size:11.5px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;letter-spacing:0.3px}
+.provider-chip .dot{width:7px;height:7px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c)}
+.provider-chip.warn .dot{background:var(--b);box-shadow:0 0 8px var(--b)}
+
+/* SIDEBAR */
+.app-body{display:grid;grid-template-columns:var(--sidebar-w) 1fr;height:calc(100vh - var(--topbar-h));overflow:hidden}
+.sidebar{background:var(--bg-elev);border-right:1px solid var(--border);padding:16px 10px;display:flex;flex-direction:column;overflow-y:auto}
+.nav-group{margin-bottom:18px}
+.nav-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1.5px;color:var(--text-faint);text-transform:uppercase;padding:10px 12px 8px;font-weight:500;display:flex;justify-content:space-between;align-items:center}
+.nav-label .count{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-faint);background:rgba(255,255,255,0.04);padding:1px 6px;border-radius:8px}
+.nav-item{display:flex;align-items:center;gap:11px;padding:8px 12px;border-radius:5px;color:var(--text-muted);cursor:pointer;font-size:13px;font-weight:500;transition:all 0.12s;margin-bottom:2px;position:relative;background:transparent;border:none;width:100%;font-family:inherit;text-align:left}
+.nav-item:hover{background:var(--bg-hover);color:var(--text)}
+.nav-item.active{background:rgba(255,184,77,0.1);color:var(--a)}
+.nav-item.active .nav-icon{color:var(--a)}
+.nav-item.active::before{content:'';position:absolute;left:-10px;top:6px;bottom:6px;width:2px;background:var(--a);border-radius:2px}
+.nav-icon{width:15px;height:15px;stroke:currentColor;stroke-width:1.8;fill:none;flex-shrink:0}
+.nav-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.nav-dot.a{background:var(--a)} .nav-dot.b{background:var(--b)} .nav-dot.c{background:var(--c)} .nav-dot.d{background:var(--d)}
+.nav-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-faint);margin-left:auto;letter-spacing:0.3px}
+.sidebar-foot{margin-top:auto;padding-top:16px;border-top:1px solid var(--border)}
+.status-tile{background:var(--bg-card);border:1px solid var(--border);border-radius:7px;padding:12px;font-size:11.5px}
+.status-tile-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.status-pulse{width:7px;height:7px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c);animation:pulse 2s infinite}
+.status-pulse.warn{background:var(--b);box-shadow:0 0 8px var(--b)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.status-tile-title{font-size:11px;font-weight:600;color:var(--text)}
+.status-tile-detail{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-faint);letter-spacing:0.3px;margin-top:2px}
+
+/* CONTENT */
+.content{overflow-y:auto;position:relative;background:radial-gradient(ellipse 900px 500px at 80% -200px,rgba(255,184,77,0.03),transparent 60%),var(--bg)}
+.view{display:none;padding:32px 40px 60px;max-width:1440px;animation:fadeIn 0.3s ease}
+.view.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.page-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;gap:24px;flex-wrap:wrap}
+.page-head-left h1{font-family:'Instrument Serif',serif;font-weight:400;font-size:32px;letter-spacing:-0.015em;color:var(--text);margin-bottom:4px;line-height:1.15}
+.page-head-left h1 em{font-style:italic;color:var(--a)}
+.page-meta{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:1px;color:var(--text-faint);text-transform:uppercase}
+.page-head-right{display:flex;gap:8px;align-items:center}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:6px;font-size:12.5px;font-weight:600;letter-spacing:0.1px;border:1px solid transparent;cursor:pointer;font-family:inherit;transition:all 0.15s;text-decoration:none}
+.btn svg{width:13px;height:13px;stroke-width:2;fill:none;stroke:currentColor}
+.btn-primary{background:var(--a);color:#1A1005}
+.btn-primary:hover{background:#FFC870}
+.btn-primary:disabled{opacity:0.6;cursor:wait}
+.btn-secondary{background:var(--bg-card);color:var(--text);border-color:var(--border-str)}
+.btn-secondary:hover{background:var(--bg-hover)}
+.btn-secondary:disabled{opacity:0.45;cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--text-muted)}
+.btn-ghost:hover{color:var(--text);background:var(--bg-hover)}
+
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:14px;font-size:11px;color:var(--text-muted);cursor:pointer;transition:all 0.15s;font-family:inherit}
+.chip:hover{background:var(--bg-hover);color:var(--text)}
+.chip.active{background:rgba(255,184,77,0.12);border-color:rgba(255,184,77,0.35);color:var(--a)}
+
+/* INPUTS */
+.input{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-size:13px;font-family:inherit;transition:border-color 0.15s}
+.input:focus{outline:none;border-color:var(--border-focus)}
+.input::placeholder{color:var(--text-faint)}
+textarea.input{resize:vertical;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.55;min-height:140px}
+.field-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--text-faint);text-transform:uppercase;margin-bottom:6px;font-weight:500;display:block}
+select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238D92A6' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;cursor:pointer}
+
+/* DASHBOARD */
+.dash-greet{display:flex;flex-direction:column;gap:6px;margin-bottom:28px}
+.dash-greet .time{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-faint);letter-spacing:1.2px;text-transform:uppercase}
+.dash-greet h1{font-family:'Instrument Serif',serif;font-size:36px;font-weight:400;letter-spacing:-0.02em;color:var(--text)}
+.dash-greet h1 em{font-style:italic;color:var(--a)}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:32px}
+.stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:20px;position:relative;transition:border-color 0.2s;cursor:pointer}
+.stat-card:hover{border-color:var(--border-str)}
+.stat-card::before{content:'';position:absolute;top:0;left:0;bottom:0;width:2px;border-radius:8px 0 0 8px}
+.stat-card.a::before{background:var(--a)}
+.stat-card.b::before{background:var(--b)}
+.stat-card.c::before{background:var(--c)}
+.stat-card.d::before{background:var(--d)}
+.stat-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.stat-label{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-faint);letter-spacing:1.5px;text-transform:uppercase}
+.stat-value{font-family:'Instrument Serif',serif;font-size:36px;line-height:1;color:var(--text);letter-spacing:-0.02em;font-weight:400}
+.stat-sub{font-size:11px;color:var(--text-faint);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+
+.dash-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-bottom:32px}
+.panel{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)}
+.panel-head h3{font-size:13px;font-weight:600;color:var(--text)}
+.panel-body{padding:0}
+.panel-inner{padding:18px 20px}
+
+.empty-slot{padding:40px 20px;text-align:center;color:var(--text-faint);font-size:12.5px;font-family:'IBM Plex Mono',monospace;letter-spacing:0.5px}
+
+/* AGENT BRIEFING CARD */
+.briefing{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.briefing-head{padding:14px 20px;display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none;border-bottom:1px solid transparent;transition:border-color 0.15s}
+.briefing.open .briefing-head{border-bottom-color:var(--border)}
+.briefing-head:hover{background:var(--bg-hover)}
+.briefing-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(255,184,77,0.1);color:var(--a)}
+.view-b .briefing-icon{background:rgba(255,123,91,0.1);color:var(--b)}
+.view-c .briefing-icon{background:rgba(110,231,183,0.1);color:var(--c)}
+.view-d .briefing-icon{background:rgba(125,211,252,0.1);color:var(--d)}
+.briefing-icon svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none}
+.briefing-title{flex:1;font-size:13px;font-weight:600;color:var(--text)}
+.briefing-title .tag{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-faint);font-weight:500;letter-spacing:1px;text-transform:uppercase;margin-left:8px}
+.briefing-toggle{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text-faint);letter-spacing:1px;text-transform:uppercase;display:flex;align-items:center;gap:6px}
+.briefing-toggle svg{width:11px;height:11px;stroke:currentColor;stroke-width:2;fill:none;transition:transform 0.2s}
+.briefing.open .briefing-toggle svg{transform:rotate(180deg)}
+.briefing-body{display:none;padding:20px 22px 22px;grid-template-columns:1.15fr 1fr;gap:32px}
+.briefing.open .briefing-body{display:grid}
+.briefing-col h4{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:var(--text-faint);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px}
+.briefing-col p{color:var(--text-muted);font-size:12.5px;line-height:1.7;margin-bottom:10px}
+.briefing-col p:last-child{margin-bottom:0}
+.briefing-col strong{color:var(--text);font-weight:600}
+.step-list{list-style:none;counter-reset:step;display:flex;flex-direction:column;gap:10px}
+.step-list li{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start;counter-increment:step;font-size:12.5px;color:var(--text-muted);line-height:1.55}
+.step-list li::before{content:counter(step);font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:var(--a);background:rgba(255,184,77,0.1);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.view-b .step-list li::before{color:var(--b);background:rgba(255,123,91,0.1)}
+.view-c .step-list li::before{color:var(--c);background:rgba(110,231,183,0.1)}
+.view-d .step-list li::before{color:var(--d);background:rgba(125,211,252,0.1)}
+.step-list li > strong:first-child{color:var(--text);display:block;margin-bottom:2px;font-weight:600}
+.step-list li strong{font-weight:600}
+@media(max-width:1200px){.briefing-body{grid-template-columns:1fr}}
+
+/* WORKSPACE */
+.workspace{display:grid;grid-template-columns:360px 1fr;gap:18px;min-height:calc(100vh - 180px)}
+.input-panel{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;height:fit-content;position:sticky;top:20px}
+.input-panel-head{padding:16px 18px;border-bottom:1px solid var(--border)}
+.input-panel-head h3{font-size:13px;font-weight:600;color:var(--text)}
+.input-panel-body{padding:18px;display:flex;flex-direction:column;gap:16px}
+.upload{border:1.5px dashed var(--border-str);border-radius:7px;padding:20px 16px;text-align:center;cursor:pointer;transition:all 0.15s;background:var(--bg-input)}
+.upload:hover{border-color:rgba(255,184,77,0.35);background:rgba(255,184,77,0.03)}
+.upload svg{width:20px;height:20px;stroke:var(--text-faint);stroke-width:1.5;fill:none;margin:0 auto 8px;display:block}
+.upload-title{font-size:12px;color:var(--text);font-weight:500;margin-bottom:2px}
+.upload-sub{font-size:10.5px;color:var(--text-faint);font-family:'IBM Plex Mono',monospace;letter-spacing:0.3px}
+.file-list{display:flex;flex-direction:column;gap:4px;margin-top:-8px}
+.file-chip{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:5px;font-size:11.5px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace}
+.file-chip .remove{margin-left:auto;cursor:pointer;color:var(--text-faint);font-size:14px;border:none;background:transparent;padding:0 4px}
+.file-chip .remove:hover{color:var(--b)}
+
+.input-panel-foot{padding:16px 18px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
+.btn-run{width:100%;justify-content:center;padding:11px;font-size:13px}
+.run-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-faint);text-align:center;letter-spacing:0.5px}
+
+/* OUTPUT */
+.output-panel{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;min-height:100%}
+.output-empty,.output-processing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 40px;text-align:center}
+.output-empty svg{width:44px;height:44px;stroke:var(--text-dim);stroke-width:1.2;fill:none;margin-bottom:16px}
+.output-empty h4{font-family:'Instrument Serif',serif;font-size:22px;color:var(--text);margin-bottom:6px;font-weight:400}
+.output-empty p{font-size:12.5px;color:var(--text-muted);max-width:380px;line-height:1.55}
+.spinner{width:40px;height:40px;border:2px solid rgba(255,184,77,0.18);border-top-color:var(--a);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.output-processing h4{font-family:'Instrument Serif',serif;font-size:22px;color:var(--text);margin-bottom:6px;font-weight:400}
+.output-processing p{font-size:12.5px;color:var(--text-muted);margin-bottom:24px;max-width:380px}
+.progress-list{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-muted);text-align:left;max-width:380px;line-height:1.9;list-style:none}
+.progress-list li{display:flex;align-items:center;gap:10px;opacity:0.35;transition:opacity 0.3s}
+.progress-list li.active{opacity:1;color:var(--a)}
+.progress-list li.done{opacity:1;color:var(--c)}
+.progress-list li::before{content:'○';flex-shrink:0;width:12px}
+.progress-list li.active::before{content:'►';color:var(--a)}
+.progress-list li.done::before{content:'✓';color:var(--c)}
+
+.output-head{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.output-head h3{font-family:'Instrument Serif',serif;font-weight:400;font-size:19px;color:var(--text);letter-spacing:-0.01em;margin-bottom:2px}
+.output-meta{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text-faint);letter-spacing:1px;text-transform:uppercase}
+.output-head-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+
+.exec-summary{padding:18px 22px;border-bottom:1px solid var(--border);background:rgba(255,184,77,0.025)}
+.exec-summary p{color:var(--text);font-size:13px;line-height:1.65;margin-bottom:10px}
+.exec-summary p:last-child{margin-bottom:0}
+
+.summary-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
+.summary-cell{background:var(--bg-card);padding:14px 18px}
+.sum-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1.3px;color:var(--text-faint);text-transform:uppercase;margin-bottom:4px}
+.sum-value{font-family:'Instrument Serif',serif;font-size:22px;color:var(--text);line-height:1;font-weight:400}
+.sum-value.crit{color:var(--crit)} .sum-value.high{color:var(--high)} .sum-value.med{color:var(--med)} .sum-value.low{color:var(--low)}
+
+.domain-scores{padding:18px 22px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:repeat(2,1fr);gap:14px 24px}
+.ds-row{display:grid;grid-template-columns:110px 1fr 60px;gap:10px;align-items:center}
+.ds-label{font-size:12px;color:var(--text);font-weight:500}
+.ds-label .ds-count{display:block;font-size:10px;color:var(--text-faint);font-family:'IBM Plex Mono',monospace}
+.ds-bar{height:8px;background:var(--bg-input);border-radius:4px;overflow:hidden}
+.ds-fill{height:100%;border-radius:4px;transition:width 0.4s}
+.ds-score{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text);text-align:right;font-weight:500}
+
+.filter-bar{display:flex;gap:8px;padding:14px 22px;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}
+.filter-label{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-faint);letter-spacing:1.3px;text-transform:uppercase;margin-right:6px}
+
+.results-wrap{overflow-x:auto}
+.findings-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.findings-table thead th{font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:1.5px;color:var(--text-faint);text-transform:uppercase;text-align:left;padding:12px 18px;background:rgba(255,255,255,0.02);border-bottom:1px solid var(--border);white-space:nowrap}
+.findings-table tbody td{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.03);vertical-align:top;font-size:12.5px;color:var(--text);line-height:1.5}
+.findings-table tbody tr:hover{background:rgba(255,255,255,0.02)}
+.findings-table td.id-cell{font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:11.5px;letter-spacing:0.3px;white-space:nowrap;color:var(--a)}
+.view-b .findings-table td.id-cell{color:var(--b)}
+.view-c .findings-table td.id-cell{color:var(--c)}
+.view-d .findings-table td.id-cell{color:var(--d)}
+.findings-table td.ctrl-cell{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text-muted);line-height:1.6}
+.recom-cell{color:var(--text-muted);font-size:12px}
+.theme-chips{margin-top:6px;display:flex;gap:4px;flex-wrap:wrap}
+.theme-mini{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:1px 5px;background:rgba(255,184,77,0.08);color:var(--a);border-radius:3px;letter-spacing:0.2px}
+
+.sev{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:3px 8px;border-radius:3px;letter-spacing:1px;text-transform:uppercase;display:inline-block}
+.sev-crit{background:rgba(255,77,109,0.15);color:var(--crit)}
+.sev-high{background:rgba(255,139,61,0.15);color:var(--high)}
+.sev-med{background:rgba(255,213,79,0.15);color:var(--med)}
+.sev-low{background:rgba(159,232,143,0.15);color:var(--low)}
+
+.stride-letter{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:3px;background:rgba(255,123,91,0.15);color:var(--b);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600}
+.mitre-chip{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:2px 6px;background:rgba(255,123,91,0.1);color:var(--b);border-radius:3px;letter-spacing:0.3px}
+
+/* Risk-specific */
+.risk-score{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;display:inline-block;padding:2px 6px;border-radius:3px;letter-spacing:0.3px}
+.rs-inherent{background:rgba(255,77,109,0.1);color:var(--crit)}
+.rs-residual{background:rgba(159,232,143,0.1);color:var(--low)}
+.risk-arrow{color:var(--text-faint);margin:0 4px}
+
+/* Agent color variants */
+.view-b .btn-primary{background:var(--b);color:#1A0A06}
+.view-b .btn-primary:hover{background:#FF9D82}
+.view-b .page-head-left h1 em{color:var(--b)}
+.view-b .upload:hover{border-color:rgba(255,123,91,0.35);background:rgba(255,123,91,0.03)}
+.view-b .input:focus{border-color:rgba(255,123,91,0.45)}
+.view-b .exec-summary{background:rgba(255,123,91,0.025)}
+
+.view-c .btn-primary{background:var(--c);color:#0A1A12}
+.view-c .btn-primary:hover{background:#9FF2C8}
+.view-c .page-head-left h1 em{color:var(--c)}
+.view-c .upload:hover{border-color:rgba(110,231,183,0.35);background:rgba(110,231,183,0.03)}
+.view-c .input:focus{border-color:rgba(110,231,183,0.45)}
+.view-c .exec-summary{background:rgba(110,231,183,0.025)}
+
+.view-d .btn-primary{background:var(--d);color:#0A1620}
+.view-d .btn-primary:hover{background:#A8E3FD}
+.view-d .page-head-left h1 em{color:var(--d)}
+.view-d .upload:hover{border-color:rgba(125,211,252,0.35);background:rgba(125,211,252,0.03)}
+.view-d .input:focus{border-color:rgba(125,211,252,0.45)}
+.view-d .exec-summary{background:rgba(125,211,252,0.025)}
+
+/* BASELINE BROWSER */
+.baseline-split{display:grid;grid-template-columns:320px 1fr;gap:18px;min-height:calc(100vh - 180px)}
+.baseline-list{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;overflow:hidden;height:fit-content;position:sticky;top:20px;max-height:calc(100vh - 100px);display:flex;flex-direction:column}
+.bl-group-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1.5px;color:var(--text-faint);text-transform:uppercase;padding:14px 16px 6px;font-weight:600}
+.bl-item{padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer;transition:background 0.1s}
+.bl-item:hover{background:var(--bg-hover)}
+.bl-item.active{background:rgba(110,231,183,0.08);border-left:2px solid var(--c)}
+.bl-item-name{font-size:12.5px;color:var(--text);font-weight:500;margin-bottom:2px}
+.bl-item-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-faint);letter-spacing:0.3px}
+
+.baseline-detail{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.bd-head{padding:22px 24px;border-bottom:1px solid var(--border)}
+.bd-title{font-family:'Instrument Serif',serif;font-size:26px;color:var(--text);font-weight:400;margin-bottom:6px}
+.bd-authority{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text-faint);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px}
+.bd-desc{font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:14px}
+.bd-tags{display:flex;gap:8px;flex-wrap:wrap}
+.bd-tag{font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:3px 10px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:12px;color:var(--text-muted)}
+
+.controls-table{width:100%;border-collapse:collapse;font-size:12px}
+.controls-table thead th{font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:1.5px;color:var(--text-faint);text-transform:uppercase;text-align:left;padding:12px 18px;background:rgba(255,255,255,0.02);border-bottom:1px solid var(--border)}
+.controls-table tbody td{padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.03);vertical-align:top;color:var(--text);line-height:1.5}
+.controls-table tbody tr:hover{background:rgba(255,255,255,0.02)}
+.controls-table td.cid{font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:11.5px;color:var(--c);white-space:nowrap}
+
+/* GAP ANALYSIS */
+.gap-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:18px 22px;border-bottom:1px solid var(--border)}
+.gap-tile{background:var(--bg-input);border:1px solid var(--border);border-radius:7px;padding:14px 16px;position:relative}
+.gap-tile::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;border-radius:8px 0 0 8px}
+.gap-tile.t1::before{background:var(--text-faint)}
+.gap-tile.t2::before{background:var(--low)}
+.gap-tile.t3::before{background:var(--high)}
+.gap-tile.t4::before{background:var(--text-faint)}
+.gap-tile-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--text-faint);letter-spacing:1.3px;text-transform:uppercase;margin-bottom:8px}
+.gap-tile-value{font-family:'Instrument Serif',serif;font-size:30px;color:var(--text);line-height:1;font-weight:400}
+.coverage-bar{padding:16px 22px;border-bottom:1px solid var(--border)}
+.cb-row{display:grid;grid-template-columns:100px 1fr 60px;gap:12px;align-items:center}
+.cb-label{font-size:12px;color:var(--text);font-weight:500}
+.cb-track{height:10px;background:var(--bg-input);border-radius:5px;overflow:hidden}
+.cb-fill{height:100%;background:linear-gradient(90deg,var(--low),var(--a));transition:width 0.5s}
+.cb-pct{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text);font-weight:600;text-align:right}
+
+.gap-status{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:2px 7px;border-radius:3px;letter-spacing:0.8px;text-transform:uppercase;display:inline-block}
+.gs-covered{background:rgba(159,232,143,0.15);color:var(--low)}
+.gs-at-risk{background:rgba(255,139,61,0.15);color:var(--high)}
+.gs-not-assessed{background:rgba(255,255,255,0.04);color:var(--text-faint)}
+
+/* CROSS-MAP */
+.crossmap-wrap{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.crossmap-body{overflow-x:auto;max-height:calc(100vh - 220px)}
+.crossmap-table{border-collapse:collapse;font-size:10.5px;min-width:100%}
+.crossmap-table thead th{position:sticky;top:0;background:var(--bg-elev);font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:0.8px;color:var(--text-muted);padding:10px 8px;text-align:center;border-bottom:1px solid var(--border);border-left:1px solid var(--border);white-space:nowrap;min-width:72px}
+.crossmap-table thead th:first-child{text-align:left;left:0;z-index:2;min-width:280px;background:var(--bg-elev)}
+.crossmap-table tbody td{padding:7px 8px;border-bottom:1px solid rgba(255,255,255,0.03);border-left:1px solid rgba(255,255,255,0.02);text-align:center;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;font-size:10px;vertical-align:middle}
+.crossmap-table tbody td:first-child{text-align:left;position:sticky;left:0;background:var(--bg-card);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:11.5px;border-left:none;font-weight:500}
+.crossmap-table tbody tr:hover td{background:rgba(255,184,77,0.04)}
+.crossmap-table tbody tr:hover td:first-child{background:var(--bg-hover)}
+.cm-has{color:var(--c);font-weight:600}
+.cm-none{color:var(--text-dim)}
+
+/* Scrollable-safe views */
+@media(max-width:1200px){.stats-grid{grid-template-columns:repeat(2,1fr)}.dash-grid{grid-template-columns:1fr}.workspace,.baseline-split{grid-template-columns:1fr}.input-panel,.baseline-list{position:static}.domain-scores{grid-template-columns:1fr}}
+@media(max-width:860px){.sidebar{display:none}.app-body{grid-template-columns:1fr}.topbar{grid-template-columns:auto 1fr auto}.brand{border-right:none;padding:0 12px}.view{padding:20px}.summary-bar{grid-template-columns:repeat(2,1fr)}.gap-tiles{grid-template-columns:repeat(2,1fr)}}
+
+/* Toast */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--bg-card);border:1px solid var(--border-str);border-radius:6px;padding:12px 16px;font-size:12.5px;color:var(--text);box-shadow:0 4px 16px rgba(0,0,0,0.4);z-index:100;max-width:340px;opacity:0;transform:translateY(10px);pointer-events:none;transition:opacity 0.25s,transform 0.25s}
+.toast.show{opacity:1;transform:translateY(0);pointer-events:auto}
+.toast.err{border-color:var(--crit)}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 2 L28 8 V18 Q28 26 16 30 Q4 26 4 18 V8 Z" fill="none" stroke="#FFB84D" stroke-width="1.5"/>
+        <path d="M16 9 L21 12 V18 Q21 21 16 23 Q11 21 11 18 V12 Z" fill="rgba(255,184,77,0.12)" stroke="#FFB84D" stroke-width="1"/>
+      </svg>
+      <div>
+        <span class="brand-text">ATLAS</span>
+        <span class="brand-sub">v2.1</span>
+      </div>
+    </div>
+    <div class="topbar-center">
+      <div class="breadcrumb">
+        <span>Cyber &amp; Digital Trust</span>
+        <span class="breadcrumb-sep">/</span>
+        <span id="bc-current" class="breadcrumb-current">Dashboard</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div id="provider-chip" class="provider-chip">
+        <span class="dot"></span>
+        <span id="provider-label">—</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-body">
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+      <div class="nav-group">
+        <button class="nav-item active" data-view="dashboard">
+          <svg class="nav-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Dashboard
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Agents <span class="count">4</span></div>
+        <button class="nav-item" data-view="review"><span class="nav-dot a"></span>Review</button>
+        <button class="nav-item" data-view="threat"><span class="nav-dot b"></span>Threat</button>
+        <button class="nav-item" data-view="baseline"><span class="nav-dot c"></span>Baseline</button>
+        <button class="nav-item" data-view="risk"><span class="nav-dot d"></span>Risk</button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Library</div>
+        <button class="nav-item" data-view="crossmap">
+          <svg class="nav-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h18M3 15h18M15 3v18"/></svg>
+          Cross-map
+        </button>
+      </div>
+
+      <div class="sidebar-foot">
+        <div class="status-tile" id="status-tile">
+          <div class="status-tile-head">
+            <span class="status-pulse" id="status-pulse"></span>
+            <span class="status-tile-title" id="status-title">Connecting…</span>
+          </div>
+          <div class="status-tile-detail" id="status-detail">—</div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="content">
+      <!-- ===== DASHBOARD ===== -->
+      <section class="view active" id="view-dashboard">
+        <div class="dash-greet">
+          <span class="time" id="greet-time">—</span>
+          <h1 id="greet-line">Welcome to <em>ATLAS</em>.</h1>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card a" onclick="switchView('review')">
+            <div class="stat-top"><span class="stat-label">Review · Agent A</span></div>
+            <div class="stat-value">Review</div>
+            <div class="stat-sub">Cross-domain architecture review across infra, security, application &amp; AI/ML</div>
+          </div>
+          <div class="stat-card b" onclick="switchView('threat')">
+            <div class="stat-top"><span class="stat-label">Threat · Agent B</span></div>
+            <div class="stat-value">Threat</div>
+            <div class="stat-sub">STRIDE threat model with MITRE ATT&amp;CK mapping</div>
+          </div>
+          <div class="stat-card c" onclick="switchView('baseline')">
+            <div class="stat-top"><span class="stat-label">Baseline · Agent C</span></div>
+            <div class="stat-value">Baseline</div>
+            <div class="stat-sub">Compliance posture vs CBUAE, SAMA, HKMA, MAS, PCI-DSS, SWIFT CSP and 12 more</div>
+          </div>
+          <div class="stat-card d" onclick="switchView('risk')">
+            <div class="stat-top"><span class="stat-label">Risk · Agent D</span></div>
+            <div class="stat-value">Risk</div>
+            <div class="stat-sub">Business-risk register with inherent &amp; residual scoring</div>
+          </div>
+        </div>
+
+        <div class="dash-grid">
+          <div class="panel">
+            <div class="panel-head"><h3>Control Library</h3></div>
+            <div class="panel-inner" id="library-summary">Loading…</div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3>Data Residency</h3></div>
+            <div class="panel-inner" id="residency-summary">Loading…</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>Recent Reviews</h3></div>
+          <div id="recent-list" class="panel-body">
+            <div class="empty-slot">No reviews yet — run one from Review, Threat, Baseline or Risk.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== REVIEW ===== -->
+      <section class="view" id="view-review">
+        <div class="page-head">
+          <div class="page-head-left">
+            <div class="page-meta">AGENT A · ARCHITECTURE REVIEW</div>
+            <h1><em>Review</em></h1>
+          </div>
+        </div>
+
+        <div class="briefing open" data-briefing>
+          <div class="briefing-head">
+            <span class="briefing-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6M7 12H1m16.24-7.24l-4.24 4.24M9 15l-4.24 4.24m12.48 0L13 15M9 9L4.76 4.76"/></svg></span>
+            <div class="briefing-title">About the Review Agent <span class="tag">How it works</span></div>
+            <div class="briefing-toggle"><span>Hide</span><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+          </div>
+          <div class="briefing-body">
+            <div class="briefing-col">
+              <h4>What this agent does</h4>
+              <p>The Review agent is a <strong>cross-domain architecture reviewer</strong>. It reads a system description and any supporting artefacts (Terraform, Kubernetes manifests, design docs, architecture diagrams, application code) and produces a prioritised list of findings across four domains — <strong>Infrastructure, Security, Application, and AI/ML</strong> — with concrete remediation and regulatory control references.</p>
+              <p>Use it for: <strong>design-stage architecture approvals</strong>, <strong>acquisition due diligence</strong>, <strong>post-incident hardening reviews</strong>, and <strong>CISO walkthroughs of new platforms</strong>. Output goes straight into an executive PDF, a technical PDF with gap analysis, or a PowerPoint for the steering committee.</p>
+              <p>Each finding carries <strong>canonical theme keys</strong> (e.g. <code style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--a)">IAM_MFA</code>, <code style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--a)">DATA_RESIDENCY</code>) which the Baseline agent uses to automatically compute gap analysis against any of the 18 regulatory frameworks.</p>
+            </div>
+            <div class="briefing-col">
+              <h4>Step-by-step</h4>
+              <ol class="step-list">
+                <li><strong>Name the system</strong>Give it the name you would use on a change ticket. This appears on the PDF cover and PowerPoint title slide.</li>
+                <li><strong>Describe the system</strong>Components, data flows, trust boundaries, regulatory scope. Be specific — 2-3 paragraphs is ideal. The agent can reason about what you tell it, not what you leave implicit.</li>
+                <li><strong>Attach artefacts (optional)</strong>Upload IaC, config, code, PDFs or architecture diagrams. PII is stripped server-side before anything leaves the host.</li>
+                <li><strong>Pick a framework</strong>Sets the lens for the review. Well-Architected for cloud-native systems, OWASP Top 10 for web apps, CIS Controls for general hardening.</li>
+                <li><strong>Run Review</strong>30-60 seconds. You'll see an exec summary, domain scores (0-100 per domain), a severity-sorted findings table, and four export formats (Exec PDF, Tech PDF, PPTX, JSON).</li>
+                <li><strong>Drill into a baseline</strong>Jump to the Baseline workspace and hit <em>Gap Analysis from Last Review</em> to see how this system scores against CBUAE, SAMA, HKMA, MAS, PCI-DSS or any of the other 13 baselines.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <div class="workspace">
+          <div class="input-panel">
+            <div class="input-panel-head"><h3>New Review</h3></div>
+            <div class="input-panel-body">
+              <div><span class="field-label">System Name</span><input type="text" class="input" id="review-name" placeholder="Customer Onboarding API" /></div>
+              <div><span class="field-label">System Description</span><textarea class="input" id="review-desc" placeholder="Describe the system, its components, data flows, trust boundaries..."></textarea></div>
+              <div>
+                <span class="field-label">Artefacts</span>
+                <label class="upload" for="review-files">
+                  <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <div class="upload-title">Click to upload</div>
+                  <div class="upload-sub">PDF · DOCX · PNG · JSON · TF · YAML</div>
+                </label>
+                <input id="review-files" type="file" multiple style="display:none" />
+                <div class="file-list" id="review-file-list"></div>
+              </div>
+              <div><span class="field-label">Framework</span>
+                <select class="input" id="review-framework">
+                  <option>AWS Well-Architected + OWASP LLM Top 10</option>
+                  <option>NIST CSF 2.0 + OWASP Top 10</option>
+                  <option>CIS Controls v8</option>
+                  <option>Azure Well-Architected</option>
+                </select>
+              </div>
+            </div>
+            <div class="input-panel-foot">
+              <button class="btn btn-primary btn-run" id="run-review">
+                <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Run Review
+              </button>
+              <div class="run-meta" id="review-run-meta">~ 30-60 SEC · LLM CALL</div>
+            </div>
+          </div>
+          <div class="output-panel" id="review-output">
+            <div class="output-empty">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              <h4>Awaiting input</h4>
+              <p>Describe a system and upload any artefacts (code, IaC, diagrams, designs). ATLAS reviews across four domains.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== THREAT ===== -->
+      <section class="view view-b" id="view-threat">
+        <div class="page-head">
+          <div class="page-head-left">
+            <div class="page-meta">AGENT B · THREAT MODELLING</div>
+            <h1>Threat <em>Modelling</em></h1>
+          </div>
+        </div>
+
+        <div class="briefing open" data-briefing>
+          <div class="briefing-head">
+            <span class="briefing-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></span>
+            <div class="briefing-title">About the Threat Agent <span class="tag">How it works</span></div>
+            <div class="briefing-toggle"><span>Hide</span><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+          </div>
+          <div class="briefing-body">
+            <div class="briefing-col">
+              <h4>What this agent does</h4>
+              <p>The Threat agent produces a <strong>STRIDE-based threat model</strong> for the system you describe, with every threat mapped to a <strong>MITRE ATT&amp;CK for Cloud technique ID</strong> (e.g. T1078.004 for Valid Accounts: Cloud Accounts). It decomposes the system into components and data flows, walks STRIDE systematically, and proposes mitigations that address the root cause — not just compensating controls.</p>
+              <p>Use it for: <strong>design-phase threat modelling</strong> before a change goes to production, <strong>red-team scoping</strong>, <strong>security-architect hand-offs</strong> between teams, and <strong>evidence packs for regulatory submissions</strong> that require documented threat analysis.</p>
+              <p>STRIDE categories: <strong>S</strong>poofing · <strong>T</strong>ampering · <strong>R</strong>epudiation · <strong>I</strong>nformation disclosure · <strong>D</strong>enial of service · <strong>E</strong>levation of privilege. The agent labels each threat with its STRIDE letter and the affected component, so you can filter and prioritise by attack class.</p>
+            </div>
+            <div class="briefing-col">
+              <h4>Step-by-step</h4>
+              <ol class="step-list">
+                <li><strong>Name the system</strong>E.g. "Payments API v2.4" or "Customer Data Lake". Appears in the output header and exports.</li>
+                <li><strong>Describe components and trust boundaries</strong>List each component (API Gateway, Lambda, RDS, KMS, etc.) and describe where data enters/leaves trust zones. The more explicit the boundaries, the sharper the threat model.</li>
+                <li><strong>Attach artefacts (optional)</strong>Architecture diagrams are especially useful here — the agent can analyse PNG/JPEG visually and spot trust boundary crossings.</li>
+                <li><strong>Generate Model</strong>The agent produces a threats table with ID, STRIDE category, component, threat scenario, MITRE technique, severity, and mitigation.</li>
+                <li><strong>Filter by STRIDE category or severity</strong>Use the chip filters to focus on, say, only Information Disclosure threats or only Critical-severity threats.</li>
+                <li><strong>Export &amp; hand over</strong>The Technical PDF export includes the full threats table with MITRE mappings — suitable for attaching to a Change Advisory Board submission.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <div class="workspace">
+          <div class="input-panel">
+            <div class="input-panel-head"><h3>New Threat Model</h3></div>
+            <div class="input-panel-body">
+              <div><span class="field-label">System Name</span><input type="text" class="input" id="threat-name" placeholder="Payments API v2.4" /></div>
+              <div><span class="field-label">System Description</span><textarea class="input" id="threat-desc" placeholder="Components, data flows, trust boundaries..."></textarea></div>
+              <div>
+                <span class="field-label">Artefacts</span>
+                <label class="upload" for="threat-files">
+                  <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <div class="upload-title">Click to upload</div>
+                  <div class="upload-sub">Diagrams, designs, code</div>
+                </label>
+                <input id="threat-files" type="file" multiple style="display:none" />
+                <div class="file-list" id="threat-file-list"></div>
+              </div>
+            </div>
+            <div class="input-panel-foot">
+              <button class="btn btn-primary btn-run" id="run-threat">
+                <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Generate Model
+              </button>
+              <div class="run-meta">STRIDE · MITRE ATT&amp;CK</div>
+            </div>
+          </div>
+          <div class="output-panel" id="threat-output">
+            <div class="output-empty">
+              <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              <h4>Awaiting input</h4>
+              <p>Describe a system — ATLAS decomposes it, applies STRIDE to each component, and maps each threat to a MITRE ATT&amp;CK technique.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== BASELINE ===== -->
+      <section class="view view-c" id="view-baseline">
+        <div class="page-head">
+          <div class="page-head-left">
+            <div class="page-meta">AGENT C · COMPLIANCE</div>
+            <h1><em>Baseline</em> Library &amp; Assessment</h1>
+          </div>
+          <div class="page-head-right">
+            <button class="btn btn-secondary" id="bl-run-gap" disabled>
+              <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              Gap Analysis from Last Review
+            </button>
+          </div>
+        </div>
+
+        <div class="briefing open" data-briefing>
+          <div class="briefing-head">
+            <span class="briefing-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+            <div class="briefing-title">About the Baseline Agent <span class="tag">How it works</span></div>
+            <div class="briefing-toggle"><span>Hide</span><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+          </div>
+          <div class="briefing-body">
+            <div class="briefing-col">
+              <h4>What this agent does</h4>
+              <p>The Baseline agent is the <strong>compliance brain</strong>. It knows 18 regulatory frameworks — <strong>UAE</strong> (UAE IA, NESA, CBUAE, DESC), <strong>GCC</strong> (NCA ECC, SAMA, CBB), <strong>Asia-Pacific</strong> (HKMA CFI, MAS TRM), and <strong>International</strong> (CIS v8, NIST CSF, NIST 800-53, PCI-DSS, ISO 27001/27002, HIPAA, SOC 2, SWIFT CSP). Every control is tagged with <strong>canonical theme keys</strong>, and findings from Review / Threat / Risk carry the same tags.</p>
+              <p>That tagging is what makes the gap analysis real: a finding about "no MFA on privileged accounts" resolves automatically to CBUAE 6.1.1, SAMA 3.3.1, HKMA CFI-PR.1, MAS TRM-10, NIST 800-53 IA-2, PCI-DSS 8.3 and fifteen other controls — no keyword matching, no manual mapping.</p>
+              <p>Use it for: <strong>regulator submissions</strong>, <strong>audit evidence packs</strong>, <strong>multi-jurisdiction reporting</strong> (one review → gap analysis against every applicable framework), and <strong>internal compliance briefings</strong> that need to demonstrate control coverage.</p>
+            </div>
+            <div class="briefing-col">
+              <h4>Step-by-step</h4>
+              <ol class="step-list">
+                <li><strong>(Optional) Run a Review first</strong>If you want gap analysis, start by running a Review, Threat or Risk assessment — the Baseline agent needs a set of findings to map against the baseline.</li>
+                <li><strong>Browse baselines</strong>Pick any baseline from the left panel. You'll see authority, version, and the full control catalogue with the canonical themes each control addresses.</li>
+                <li><strong>Run gap analysis</strong>If you've run a review, click <em>Gap Analysis from Last Review</em> (top right) or the button inside the baseline detail panel. The agent resolves every finding's theme keys against every control in the chosen baseline.</li>
+                <li><strong>Read the result</strong>Controls are marked <strong style="color:var(--low)">COVERED</strong> (findings touched this control and severity is medium or below), <strong style="color:var(--high)">AT-RISK</strong> (findings touched the control with critical or high severity), or <strong style="color:var(--text-faint)">NOT-ASSESSED</strong> (outside the review's scope). Coverage % shows addressed ÷ total.</li>
+                <li><strong>Export for evidence</strong>The Technical PDF export includes the full gap analysis table tied to the baseline of your choice (?baseline=CBUAE query param in the URL).</li>
+                <li><strong>Cross-reference</strong>The Cross-map view (left sidebar) shows the full 70 × 18 matrix — useful for proving that a single finding impacts multiple frameworks at once.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <div class="baseline-split">
+          <aside class="baseline-list" id="baseline-list">
+            <div class="empty-slot">Loading baselines…</div>
+          </aside>
+          <div class="baseline-detail" id="baseline-detail">
+            <div class="output-empty" style="min-height:400px">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <h4>Pick a baseline</h4>
+              <p>18 regulatory baselines across UAE, GCC, Asia-Pacific and international standards, cross-mapped to 70 canonical themes.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== RISK ===== -->
+      <section class="view view-d" id="view-risk">
+        <div class="page-head">
+          <div class="page-head-left">
+            <div class="page-meta">AGENT D · RISK REGISTER</div>
+            <h1><em>Risk</em> Register</h1>
+          </div>
+        </div>
+
+        <div class="briefing open" data-briefing>
+          <div class="briefing-head">
+            <span class="briefing-icon"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+            <div class="briefing-title">About the Risk Agent <span class="tag">How it works</span></div>
+            <div class="briefing-toggle"><span>Hide</span><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+          </div>
+          <div class="briefing-body">
+            <div class="briefing-col">
+              <h4>What this agent does</h4>
+              <p>The Risk agent is the <strong>translator for the boardroom</strong>. It takes a system description and produces a business-risk register in the language your Executive Risk Committee actually uses — regulatory penalties, reputational harm, operational outage, financial loss — not CVE numbers or IAM policy excerpts.</p>
+              <p>Every risk is scored on a <strong>5 × 5 likelihood × impact matrix</strong>, producing an <strong>inherent score</strong> (1-25 before controls) and a <strong>residual score</strong> (after the proposed controls land). Every risk gets a treatment recommendation: <strong>avoid</strong>, <strong>transfer</strong>, <strong>mitigate</strong> or <strong>accept</strong>.</p>
+              <p>Use it for: <strong>ERC/RMC submissions</strong>, <strong>board risk reports</strong>, <strong>M&amp;A risk due-diligence</strong>, <strong>post-audit translation</strong> (turning technical audit findings into risk statements the business sponsor understands), and <strong>insurance/cyber-insurance renewal packs</strong>.</p>
+            </div>
+            <div class="briefing-col">
+              <h4>Step-by-step</h4>
+              <ol class="step-list">
+                <li><strong>Name the system</strong>Business-language name the ERC will recognise — e.g. "Corporate Lending Platform", not "CLP-v3.1-prod". Appears on all exports.</li>
+                <li><strong>Describe what's at stake</strong>Focus on business context: what does the system do, who depends on it, what regulatory scope applies, what's the revenue or customer exposure. Technical detail helps — but framing matters more here than in Review.</li>
+                <li><strong>Attach supporting docs (optional)</strong>Existing risk registers, business impact analyses, or architecture diagrams give the agent richer context for scoring.</li>
+                <li><strong>Build Risk Register</strong>30-60 seconds. You'll get a risk register table with ID, business-language title, inherent → residual scores, treatment, and mapped control references.</li>
+                <li><strong>Review inherent vs residual</strong>The difference between the two is the <em>value</em> of the proposed controls. A risk scored 20 → 4 tells the board the mitigation delivers 16 points of risk reduction.</li>
+                <li><strong>Cross-reference to regulations</strong>Because each risk carries canonical theme keys, the Baseline agent can show exactly which CBUAE, SAMA, HKMA, MAS or NIST clauses each risk maps to — essential for "regulatory risk" framing in the RCSA.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <div class="workspace">
+          <div class="input-panel">
+            <div class="input-panel-head"><h3>New Risk Assessment</h3></div>
+            <div class="input-panel-body">
+              <div><span class="field-label">System Name</span><input type="text" class="input" id="risk-name" placeholder="Corporate Lending Platform" /></div>
+              <div><span class="field-label">System Description</span><textarea class="input" id="risk-desc" placeholder="What does the system do? What are the business stakes?"></textarea></div>
+              <div>
+                <span class="field-label">Artefacts</span>
+                <label class="upload" for="risk-files">
+                  <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <div class="upload-title">Click to upload</div>
+                  <div class="upload-sub">Optional supporting docs</div>
+                </label>
+                <input id="risk-files" type="file" multiple style="display:none" />
+                <div class="file-list" id="risk-file-list"></div>
+              </div>
+            </div>
+            <div class="input-panel-foot">
+              <button class="btn btn-primary btn-run" id="run-risk">
+                <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Build Risk Register
+              </button>
+              <div class="run-meta">INHERENT · RESIDUAL · 5×5 MATRIX</div>
+            </div>
+          </div>
+          <div class="output-panel" id="risk-output">
+            <div class="output-empty">
+              <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <h4>Awaiting input</h4>
+              <p>ATLAS turns technical findings into board-ready risk statements with likelihood × impact scoring before and after controls.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== CROSS-MAP ===== -->
+      <section class="view" id="view-crossmap">
+        <div class="page-head">
+          <div class="page-head-left">
+            <div class="page-meta">LIBRARY · CROSS-MAPPING MATRIX</div>
+            <h1>Cross-<em>map</em></h1>
+          </div>
+          <div class="page-head-right">
+            <div class="page-meta" id="cm-meta">—</div>
+          </div>
+        </div>
+        <div class="crossmap-wrap"><div class="crossmap-body" id="crossmap-body"><div class="empty-slot">Loading matrix…</div></div></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  health: null,
+  baselines: [],
+  themes: [],
+  crossmap: null,
+  currentBaseline: null,
+  reviews: {},         // workflow -> { review_id, review, meta }
+  lastReview: null,    // most recent review of any kind
+  files: { review: [], threat: [], risk: [] },
+  activeSeverityFilter: { review: 'all', threat: 'all', risk: 'all' },
+};
+
+// ============================================================
+// HTTP
+// ============================================================
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    let msg = `${r.status} ${r.statusText}`;
+    try { const j = await r.json(); if (j.error) msg = j.error; } catch(_) {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+async function apiForm(path, formData) {
+  const r = await fetch(path, { method: 'POST', body: formData });
+  if (!r.ok) {
+    let msg = `${r.status} ${r.statusText}`;
+    try { const j = await r.json(); if (j.error) msg = j.error; } catch(_) {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+// ============================================================
+// UI — views and nav
+// ============================================================
+const viewLabels = {
+  dashboard: 'Dashboard', review: 'Review', threat: 'Threat',
+  baseline: 'Baseline', risk: 'Risk', crossmap: 'Cross-map',
+};
+
+function switchView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const el = document.getElementById('view-' + name);
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const btn = document.querySelector(`.nav-item[data-view="${name}"]`);
+  if (btn) btn.classList.add('active');
+  document.getElementById('bc-current').textContent = viewLabels[name] || name;
+  if (name === 'crossmap' && !state.crossmap) loadCrossMap();
+  if (name === 'baseline' && !state.baselines.length) loadBaselines();
+}
+window.switchView = switchView;
+document.querySelectorAll('.nav-item[data-view]').forEach(b => {
+  b.addEventListener('click', () => switchView(b.dataset.view));
+});
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.toggle('err', isError);
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 4500);
+}
+
+// ============================================================
+// BOOT
+// ============================================================
+async function boot() {
+  // Greet line
+  const hr = new Date().getHours();
+  const greet = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('greet-time').textContent =
+    new Date().toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }).toUpperCase() +
+    ' · ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('greet-line').innerHTML = `${greet} — <em>ATLAS</em> is ready.`;
+
+  try {
+    const h = await api('/api/health');
+    state.health = h;
+    renderProvider(h);
+    renderLibrary(h);
+    renderResidency(h);
+  } catch (e) {
+    showToast('Health check failed: ' + e.message, true);
+  }
+
+  // Pre-load baselines in background so the Baseline tab is instant
+  loadBaselines().catch(() => {});
+}
+
+function renderProvider(h) {
+  const chip = document.getElementById('provider-chip');
+  const warn = h.provider?.residency_warning;
+  chip.classList.toggle('warn', !!warn);
+  document.getElementById('provider-label').textContent =
+    `${h.provider?.label || '—'} · ${h.provider?.region || '—'}`;
+
+  document.getElementById('status-title').textContent = warn ? 'Cross-border egress' : 'In-region';
+  document.getElementById('status-detail').textContent =
+    `${h.controls?.baselines || 0} baselines · PII ${h.pii_redaction ? 'ON' : 'OFF'}`;
+  document.getElementById('status-pulse').classList.toggle('warn', !!warn);
+}
+
+function renderLibrary(h) {
+  const c = h.controls || {};
+  document.getElementById('library-summary').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+      <div><div class="sum-label">Baselines</div><div class="sum-value">${c.baselines || 0}</div></div>
+      <div><div class="sum-label">Themes</div><div class="sum-value">${c.themes || 0}</div></div>
+      <div><div class="sum-label">Controls</div><div class="sum-value">${c.controls || 0}</div></div>
+    </div>
+    <div style="margin-top:14px;font-size:12px;color:var(--text-muted);line-height:1.55">
+      Cross-mapped UAE, GCC and international control catalogues. Findings are tagged with canonical theme keys for automated gap analysis.
+    </div>`;
+}
+
+function renderResidency(h) {
+  const dr = h.data_residency || {};
+  const warn = dr.cross_border;
+  document.getElementById('residency-summary').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span class="status-pulse ${warn?'warn':''}" style="display:inline-block"></span>
+      <span style="font-weight:600;font-size:13px">${warn ? 'Data crosses border' : 'In-region processing'}</span>
+    </div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-muted);line-height:1.7">
+      PROCESSED_IN: ${dr.processed_in || '—'}<br>
+      REGION: ${dr.region || '—'}<br>
+      PII_REDACT: ${h.pii_redaction ? 'ON' : 'OFF'}
+    </div>
+    ${dr.note ? `<div style="margin-top:10px;font-size:11.5px;color:var(--text-faint);font-style:italic">${escapeHtml(dr.note)}</div>` : ''}`;
+}
+
+// ============================================================
+// FILE UPLOAD widgets
+// ============================================================
+function wireFilePicker(inputId, listId, bucket) {
+  const input = document.getElementById(inputId);
+  const list = document.getElementById(listId);
+  input.addEventListener('change', (e) => {
+    for (const f of e.target.files) state.files[bucket].push(f);
+    e.target.value = '';
+    renderFileList(list, bucket);
+  });
+}
+
+function renderFileList(list, bucket) {
+  const files = state.files[bucket];
+  if (!files.length) { list.innerHTML = ''; return; }
+  list.innerHTML = files.map((f, i) => `
+    <div class="file-chip">
+      <span>${escapeHtml(f.name)} · ${(f.size/1024).toFixed(0)}KB</span>
+      <button class="remove" data-i="${i}">×</button>
+    </div>`).join('');
+  list.querySelectorAll('.remove').forEach(b => {
+    b.addEventListener('click', () => {
+      state.files[bucket].splice(+b.dataset.i, 1);
+      renderFileList(list, bucket);
+    });
+  });
+}
+
+wireFilePicker('review-files', 'review-file-list', 'review');
+wireFilePicker('threat-files', 'threat-file-list', 'threat');
+wireFilePicker('risk-files',   'risk-file-list',   'risk');
+
+// ============================================================
+// RUN REVIEW (shared across 4 agents)
+// ============================================================
+const progressSteps = {
+  review: ['Extracting artefacts','Redacting PII','Running cross-domain review','Scoring findings'],
+  threat: ['Decomposing system','Applying STRIDE','Mapping MITRE ATT&CK','Drafting mitigations'],
+  baseline: ['Extracting artefacts','Mapping to baseline','Identifying gaps','Scoring severity'],
+  risk: ['Extracting artefacts','Translating to business risk','Scoring inherent × residual','Mapping to themes'],
+};
+
+async function runReview(workflow, fields) {
+  const outputId = `${workflow}-output`;
+  const output = document.getElementById(outputId);
+  const btn = document.getElementById(`run-${workflow}`);
+  btn.disabled = true;
+
+  // Build FormData
+  const fd = new FormData();
+  if (fields.system_name) fd.append('system_name', fields.system_name);
+  if (fields.description) fd.append('description', fields.description);
+  fd.append('workflow', workflow);
+  if (fields.framework) fd.append('framework', fields.framework);
+  if (fields.baseline)  fd.append('baseline', fields.baseline);
+  for (const f of state.files[workflow] || []) fd.append('files', f);
+
+  // Render processing state
+  const steps = progressSteps[workflow] || progressSteps.review;
+  output.innerHTML = `
+    <div class="output-processing">
+      <div class="spinner"></div>
+      <h4>Running…</h4>
+      <p>LLM inference in progress. Typical time 30–60 seconds depending on input size.</p>
+      <ul class="progress-list" id="progress-${workflow}">
+        ${steps.map((s,i) => `<li data-step="${i}">${s}</li>`).join('')}
+      </ul>
+    </div>`;
+  // Animate the progress list (independent of real progress — keeps the user engaged)
+  const listEl = document.getElementById(`progress-${workflow}`);
+  const items = listEl.querySelectorAll('li');
+  let si = 0;
+  items[0].classList.add('active');
+  const timer = setInterval(() => {
+    if (si < items.length - 1) {
+      items[si].classList.remove('active');
+      items[si].classList.add('done');
+      si++;
+      items[si].classList.add('active');
+    }
+  }, 4500);
+
+  try {
+    const res = await apiForm('/api/review', fd);
+    clearInterval(timer);
+    items.forEach(it => { it.classList.remove('active'); it.classList.add('done'); });
+
+    state.reviews[workflow] = res;
+    state.lastReview = res;
+    renderReview(workflow, res);
+
+    // Enable baseline-gap button
+    document.getElementById('bl-run-gap').disabled = false;
+
+    showToast(`${capitalize(workflow)} complete — ${res.review.findings?.length || 0} findings`);
+  } catch (e) {
+    clearInterval(timer);
+    output.innerHTML = `
+      <div class="output-empty">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <h4>Run failed</h4>
+        <p>${escapeHtml(e.message)}</p>
+      </div>`;
+    showToast('Run failed: ' + e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('run-review').addEventListener('click', () => {
+  runReview('review', {
+    system_name: document.getElementById('review-name').value,
+    description: document.getElementById('review-desc').value,
+    framework:   document.getElementById('review-framework').value,
+  });
+});
+document.getElementById('run-threat').addEventListener('click', () => {
+  runReview('threat', {
+    system_name: document.getElementById('threat-name').value,
+    description: document.getElementById('threat-desc').value,
+  });
+});
+document.getElementById('run-risk').addEventListener('click', () => {
+  runReview('risk', {
+    system_name: document.getElementById('risk-name').value,
+    description: document.getElementById('risk-desc').value,
+  });
+});
+
+// ============================================================
+// RENDER REVIEW RESULTS
+// ============================================================
+function renderReview(workflow, res) {
+  const { review, review_id, meta } = res;
+  const el = document.getElementById(`${workflow}-output`);
+  const counts = countSeverity(review.findings || []);
+  const isThreat = workflow === 'threat';
+  const isRisk   = workflow === 'risk';
+
+  el.innerHTML = `
+    <div class="output-head">
+      <div>
+        <h3>${escapeHtml(review.system_name || 'Untitled')}</h3>
+        <div class="output-meta">
+          ${workflow.toUpperCase()} · ${review_id.toUpperCase()} · ${(meta.elapsed_ms/1000).toFixed(1)}s · ${meta.tokens?.input_tokens||0} in / ${meta.tokens?.output_tokens||0} out
+        </div>
+      </div>
+      <div class="output-head-actions">
+        <button class="btn btn-ghost" data-export="json">JSON</button>
+        <button class="btn btn-secondary" data-export="pdf-exec">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          PDF (Exec)
+        </button>
+        <button class="btn btn-secondary" data-export="pdf-tech">PDF (Tech)</button>
+        <button class="btn btn-secondary" data-export="pptx">PPTX</button>
+      </div>
+    </div>
+
+    ${renderExecSummary(review)}
+
+    <div class="summary-bar">
+      <div class="summary-cell"><div class="sum-label">Total</div><div class="sum-value">${counts.total}</div></div>
+      <div class="summary-cell"><div class="sum-label">Critical</div><div class="sum-value crit">${counts.critical}</div></div>
+      <div class="summary-cell"><div class="sum-label">High</div><div class="sum-value high">${counts.high}</div></div>
+      <div class="summary-cell"><div class="sum-label">Medium</div><div class="sum-value med">${counts.medium}</div></div>
+      <div class="summary-cell"><div class="sum-label">Low</div><div class="sum-value low">${counts.low}</div></div>
+    </div>
+
+    ${renderDomainScores(review.domain_scores)}
+
+    <div class="filter-bar">
+      <span class="filter-label">Filter</span>
+      ${['all','critical','high','medium','low'].map(s => {
+        const n = s==='all' ? counts.total : counts[s];
+        const active = state.activeSeverityFilter[workflow] === s;
+        return `<button class="chip ${active?'active':''}" data-sev="${s}">${capitalize(s)} · ${n}</button>`;
+      }).join('')}
+    </div>
+
+    <div class="results-wrap">
+      ${renderFindings(review.findings || [], workflow, isThreat, isRisk)}
+    </div>`;
+
+  // Wire exports
+  el.querySelectorAll('[data-export]').forEach(b => {
+    b.addEventListener('click', () => doExport(b.dataset.export, review_id, review.system_name));
+  });
+  // Wire severity filter
+  el.querySelectorAll('.chip[data-sev]').forEach(c => {
+    c.addEventListener('click', () => {
+      state.activeSeverityFilter[workflow] = c.dataset.sev;
+      renderReview(workflow, res);
+    });
+  });
+}
+
+function renderExecSummary(review) {
+  const s = review.executive_summary;
+  if (!s) return '';
+  const paras = Array.isArray(s) ? s : [s];
+  return `<div class="exec-summary">${paras.map(p => `<p>${escapeHtml(p)}</p>`).join('')}</div>`;
+}
+
+function renderDomainScores(scores) {
+  if (!scores) return '';
+  const labels = { infrastructure:'Infrastructure', security:'Security', application:'Application', ai_ml:'AI / ML' };
+  const rows = Object.keys(labels).map(d => {
+    const v = scores[d] || { score: 0, finding_count: 0 };
+    const score = Math.max(0, Math.min(100, v.score || 0));
+    const color = score >= 80 ? 'var(--low)' : score >= 60 ? 'var(--med)' : score >= 40 ? 'var(--high)' : 'var(--crit)';
+    return `
+      <div class="ds-row">
+        <div class="ds-label">${labels[d]}<span class="ds-count">${v.finding_count||0} finding${(v.finding_count||0)===1?'':'s'}</span></div>
+        <div class="ds-bar"><div class="ds-fill" style="width:${score}%;background:${color}"></div></div>
+        <div class="ds-score">${score} / 100</div>
+      </div>`;
+  }).join('');
+  return `<div class="domain-scores">${rows}</div>`;
+}
+
+function renderFindings(findings, workflow, isThreat, isRisk) {
+  const filter = state.activeSeverityFilter[workflow];
+  const filtered = findings.filter(f => filter === 'all' || f.severity === filter);
+  if (!filtered.length) return `<div class="empty-slot">No findings at this severity.</div>`;
+  // Sort by severity
+  const rank = { critical:4, high:3, medium:2, low:1 };
+  filtered.sort((a,b) => (rank[b.severity]||0) - (rank[a.severity]||0));
+
+  if (isThreat) {
+    return `
+      <table class="findings-table">
+        <thead><tr>
+          <th style="width:7%">ID</th><th style="width:5%">CAT</th><th style="width:13%">Component</th>
+          <th style="width:24%">Threat</th><th style="width:11%">MITRE</th><th style="width:7%">Sev</th>
+          <th style="width:33%">Mitigation</th>
+        </tr></thead>
+        <tbody>${filtered.map(f => `
+          <tr>
+            <td class="id-cell">${escapeHtml(f.id||'')}</td>
+            <td>${f.stride ? `<span class="stride-letter">${escapeHtml(f.stride)}</span>` : '—'}</td>
+            <td>${escapeHtml(f.component || '—')}</td>
+            <td>${escapeHtml(f.title||'')}<div style="color:var(--text-muted);font-size:11.5px;margin-top:4px">${escapeHtml(f.finding||'')}</div>${renderThemeChips(f.theme_keys)}</td>
+            <td>${f.mitre ? `<span class="mitre-chip">${escapeHtml(f.mitre)}</span>` : '—'}</td>
+            <td><span class="sev sev-${sevShort(f.severity)}">${sevLabel(f.severity)}</span></td>
+            <td class="recom-cell">${escapeHtml(f.recommendation||'')}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+  if (isRisk) {
+    return `
+      <table class="findings-table">
+        <thead><tr>
+          <th style="width:8%">ID</th><th style="width:7%">Sev</th><th style="width:28%">Risk</th>
+          <th style="width:12%">Inherent → Residual</th><th style="width:11%">Treatment</th><th style="width:34%">Controls</th>
+        </tr></thead>
+        <tbody>${filtered.map(f => `
+          <tr>
+            <td class="id-cell">${escapeHtml(f.id||'')}</td>
+            <td><span class="sev sev-${sevShort(f.severity)}">${sevLabel(f.severity)}</span></td>
+            <td>${escapeHtml(f.title||'')}<div style="color:var(--text-muted);font-size:11.5px;margin-top:4px">${escapeHtml(f.finding||'')}</div>${renderThemeChips(f.theme_keys)}</td>
+            <td><span class="risk-score rs-inherent">${f.inherent_score ?? '—'}</span><span class="risk-arrow">→</span><span class="risk-score rs-residual">${f.residual_score ?? '—'}</span><div style="font-size:10px;color:var(--text-faint);margin-top:3px;font-family:'IBM Plex Mono',monospace">L${f.likelihood||'?'} × I${f.impact||'?'}</div></td>
+            <td class="recom-cell">${escapeHtml(f.recommendation||'').toLowerCase().startsWith('avoid')||escapeHtml(f.recommendation||'').toLowerCase().startsWith('transfer')||escapeHtml(f.recommendation||'').toLowerCase().startsWith('mitigate')||escapeHtml(f.recommendation||'').toLowerCase().startsWith('accept') ? escapeHtml(f.recommendation||'') : 'Mitigate'}</td>
+            <td class="ctrl-cell">${(f.control_refs||[]).map(escapeHtml).join(' · ')||'—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+  // Review / Baseline: default 5-column layout
+  return `
+    <table class="findings-table">
+      <thead><tr>
+        <th style="width:8%">ID</th><th style="width:7%">Sev</th><th style="width:28%">Finding</th>
+        <th style="width:17%">Control Ref</th><th style="width:40%">Recommendation</th>
+      </tr></thead>
+      <tbody>${filtered.map(f => `
+        <tr>
+          <td class="id-cell">${escapeHtml(f.id||'')}</td>
+          <td><span class="sev sev-${sevShort(f.severity)}">${sevLabel(f.severity)}</span></td>
+          <td>${escapeHtml(f.title||'')}<div style="color:var(--text-muted);font-size:11.5px;margin-top:4px">${escapeHtml(f.finding||'')}</div>${renderThemeChips(f.theme_keys)}</td>
+          <td class="ctrl-cell">${(f.control_refs||[]).map(escapeHtml).join('<br>')||'—'}</td>
+          <td class="recom-cell">${escapeHtml(f.recommendation||'')}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function renderThemeChips(keys) {
+  if (!keys || !keys.length) return '';
+  return `<div class="theme-chips">${keys.slice(0,4).map(k => `<span class="theme-mini">${escapeHtml(k)}</span>`).join('')}</div>`;
+}
+
+// ============================================================
+// EXPORTS
+// ============================================================
+async function doExport(kind, review_id, name) {
+  const url = `/api/export/${kind}/${review_id}`;
+  showToast(`Preparing ${kind.toUpperCase()}…`);
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const ext = kind === 'pptx' ? 'pptx' : kind === 'json' ? 'json' : 'pdf';
+    const label = kind === 'pdf-exec' ? 'Executive' : kind === 'pdf-tech' ? 'Technical' : kind === 'pptx' ? 'Deck' : 'Data';
+    a.download = `ATLAS-${label}-${slug(name||'review')}.${ext}`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(a.href);
+    showToast(`${kind.toUpperCase()} downloaded`);
+  } catch (e) {
+    showToast(`Export failed: ${e.message}`, true);
+  }
+}
+
+// ============================================================
+// BASELINE BROWSER
+// ============================================================
+async function loadBaselines() {
+  try {
+    const { baselines } = await api('/api/baselines');
+    state.baselines = baselines;
+    renderBaselineList();
+  } catch (e) {
+    document.getElementById('baseline-list').innerHTML =
+      `<div class="empty-slot" style="color:var(--crit)">Failed to load: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderBaselineList() {
+  const groups = { uae:[], gcc:[], apac:[], international:[] };
+  state.baselines.forEach(b => (groups[b.family] || (groups[b.family]=[])).push(b));
+  const section = (label, items) => items.length ? `
+    <div class="bl-group-label">${label}</div>
+    ${items.map(b => `
+      <div class="bl-item ${state.currentBaseline===b.id?'active':''}" data-id="${b.id}">
+        <div class="bl-item-name">${escapeHtml(b.short)}</div>
+        <div class="bl-item-meta">${escapeHtml(b.jurisdiction)} · ${b.control_count} controls</div>
+      </div>`).join('')}` : '';
+  const el = document.getElementById('baseline-list');
+  el.innerHTML = `<div style="overflow-y:auto">
+    ${section('United Arab Emirates', groups.uae)}
+    ${section('GCC Region', groups.gcc)}
+    ${section('Asia-Pacific', groups.apac)}
+    ${section('International', groups.international)}
+  </div>`;
+  el.querySelectorAll('.bl-item').forEach(it => {
+    it.addEventListener('click', () => openBaseline(it.dataset.id));
+  });
+}
+
+async function openBaseline(id) {
+  state.currentBaseline = id;
+  renderBaselineList();
+  const detail = document.getElementById('baseline-detail');
+  detail.innerHTML = `<div class="output-empty" style="min-height:400px"><div class="spinner"></div><h4>Loading…</h4></div>`;
+  try {
+    const { baseline } = await api(`/api/baseline/${id}`);
+    renderBaselineDetail(baseline);
+  } catch (e) {
+    detail.innerHTML = `<div class="output-empty" style="min-height:400px"><h4>Failed</h4><p>${escapeHtml(e.message)}</p></div>`;
+  }
+}
+
+function renderBaselineDetail(b) {
+  const detail = document.getElementById('baseline-detail');
+  const gapBlock = renderGapBlock(b.id);
+  detail.innerHTML = `
+    <div class="bd-head">
+      <div class="bd-title">${escapeHtml(b.name)}</div>
+      <div class="bd-authority">${escapeHtml(b.authority)} · ${escapeHtml(b.version)}</div>
+      <div class="bd-desc">${escapeHtml(b.description)}</div>
+      <div class="bd-tags">
+        <span class="bd-tag">${escapeHtml(b.jurisdiction)}</span>
+        <span class="bd-tag">${b.controls.length} controls</span>
+        <span class="bd-tag">${escapeHtml(b.short)}</span>
+      </div>
+    </div>
+    ${gapBlock}
+    <div>
+      <table class="controls-table">
+        <thead><tr><th style="width:14%">Control</th><th style="width:36%">Title</th><th style="width:50%">Themes</th></tr></thead>
+        <tbody>${b.controls.map(c => `
+          <tr>
+            <td class="cid">${escapeHtml(c.id)}</td>
+            <td>${escapeHtml(c.title)}</td>
+            <td>${(c.themes||[]).map(t => `<span class="theme-mini" title="${escapeHtml(t.label||'')}">${escapeHtml(t.key)}</span>`).join(' ')}</td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderGapBlock(baselineId) {
+  if (!state.lastReview) {
+    return `<div class="empty-slot" style="padding:22px">Run a Review, Threat, or Risk assessment first — then gap analysis against this baseline will appear here.</div>`;
+  }
+  // placeholder; filled by runGapAnalysis
+  return `<div id="gap-block" data-baseline="${baselineId}"><div class="empty-slot" style="padding:22px"><button class="btn btn-secondary" onclick="runGapAnalysis('${baselineId}')">Compute Gap Analysis vs ${escapeHtml(state.lastReview.review.system_name || 'last review')}</button></div></div>`;
+}
+
+async function runGapAnalysis(baselineId) {
+  const block = document.getElementById('gap-block');
+  if (!state.lastReview) return;
+  block.innerHTML = `<div class="empty-slot" style="padding:22px"><div class="spinner" style="margin:0 auto 12px"></div>Computing gap analysis…</div>`;
+  try {
+    const res = await api('/api/gap-analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ review_id: state.lastReview.review_id, baseline_id: baselineId }),
+    });
+    renderGapResult(res.gap_analysis);
+  } catch (e) {
+    block.innerHTML = `<div class="empty-slot" style="padding:22px;color:var(--crit)">Gap analysis failed: ${escapeHtml(e.message)}</div>`;
+  }
+}
+window.runGapAnalysis = runGapAnalysis;
+
+function renderGapResult(gap) {
+  const block = document.getElementById('gap-block');
+  const s = gap.summary;
+  block.innerHTML = `
+    <div class="gap-tiles">
+      <div class="gap-tile t1"><div class="gap-tile-label">Total</div><div class="gap-tile-value">${s.total}</div></div>
+      <div class="gap-tile t2"><div class="gap-tile-label">Covered</div><div class="gap-tile-value">${s.covered}</div></div>
+      <div class="gap-tile t3"><div class="gap-tile-label">At Risk</div><div class="gap-tile-value">${s.at_risk}</div></div>
+      <div class="gap-tile t4"><div class="gap-tile-label">Not Assessed</div><div class="gap-tile-value">${s.not_assessed}</div></div>
+    </div>
+    <div class="coverage-bar">
+      <div class="cb-row">
+        <div class="cb-label">Coverage</div>
+        <div class="cb-track"><div class="cb-fill" style="width:${s.coverage_pct}%"></div></div>
+        <div class="cb-pct">${s.coverage_pct}%</div>
+      </div>
+    </div>
+    <table class="controls-table">
+      <thead><tr><th style="width:14%">Control</th><th style="width:50%">Title</th><th style="width:18%">Status</th><th style="width:18%">Severity</th></tr></thead>
+      <tbody>${gap.controls.map(c => `
+        <tr>
+          <td class="cid">${escapeHtml(c.control_id)}</td>
+          <td>${escapeHtml(c.control_title)}</td>
+          <td><span class="gap-status gs-${c.status}">${c.status.replace('-',' ')}</span></td>
+          <td>${c.worst_severity ? `<span class="sev sev-${sevShort(c.worst_severity)}">${sevLabel(c.worst_severity)}</span>` : '—'}</td>
+        </tr>`).join('')}</tbody>
+    </table>`;
+}
+
+// Run gap analysis from page-head button
+document.getElementById('bl-run-gap').addEventListener('click', () => {
+  if (!state.lastReview) { showToast('Run a review first.', true); return; }
+  if (!state.currentBaseline) { showToast('Pick a baseline first.', true); return; }
+  runGapAnalysis(state.currentBaseline);
+});
+
+// ============================================================
+// CROSS-MAP
+// ============================================================
+async function loadCrossMap() {
+  const body = document.getElementById('crossmap-body');
+  body.innerHTML = `<div class="empty-slot"><div class="spinner" style="margin:0 auto 12px"></div>Loading cross-map matrix…</div>`;
+  try {
+    const [{ matrix }, { baselines }] = await Promise.all([
+      api('/api/crossmap'),
+      state.baselines.length ? Promise.resolve({ baselines: state.baselines }) : api('/api/baselines'),
+    ]);
+    state.crossmap = matrix;
+    if (!state.baselines.length) state.baselines = baselines;
+    renderCrossMap(matrix, state.baselines);
+  } catch (e) {
+    body.innerHTML = `<div class="empty-slot" style="color:var(--crit)">Failed: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderCrossMap(matrix, baselines) {
+  const body = document.getElementById('crossmap-body');
+  const blOrder = baselines.map(b => b.id);
+  const themeKeys = Object.keys(matrix);
+  document.getElementById('cm-meta').textContent =
+    `${themeKeys.length} THEMES × ${baselines.length} BASELINES`;
+  // Build a lookup: theme -> baseline_id -> count
+  const grid = {};
+  for (const [themeKey, entry] of Object.entries(matrix)) {
+    grid[themeKey] = {};
+    for (const c of entry.citations) {
+      grid[themeKey][c.baseline_id] = (grid[themeKey][c.baseline_id] || 0) + 1;
+    }
+  }
+  // Group themes by domain for readability
+  const byDomain = {};
+  for (const [k, entry] of Object.entries(matrix)) {
+    const d = entry.theme.domain;
+    (byDomain[d] = byDomain[d] || []).push({ key: k, label: entry.theme.label });
+  }
+
+  const rows = [];
+  for (const domain of Object.keys(byDomain)) {
+    rows.push(`<tr style="background:var(--bg-hover)"><td colspan="${blOrder.length+1}" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-faint);letter-spacing:1.5px;text-transform:uppercase;padding:10px 12px">${escapeHtml(domain)}</td></tr>`);
+    for (const t of byDomain[domain]) {
+      rows.push(`
+        <tr>
+          <td><div style="font-weight:500">${escapeHtml(t.label)}</div><div style="font-size:10px;color:var(--text-faint);font-family:'IBM Plex Mono',monospace">${escapeHtml(t.key)}</div></td>
+          ${blOrder.map(bid => {
+            const n = grid[t.key]?.[bid] || 0;
+            return `<td class="${n?'cm-has':'cm-none'}">${n || '·'}</td>`;
+          }).join('')}
+        </tr>`);
+    }
+  }
+
+  body.innerHTML = `
+    <table class="crossmap-table">
+      <thead><tr>
+        <th>Theme</th>
+        ${baselines.map(b => `<th title="${escapeHtml(b.name)}">${escapeHtml(b.short)}</th>`).join('')}
+      </tr></thead>
+      <tbody>${rows.join('')}</tbody>
+    </table>`;
+}
+
+// ============================================================
+// UTIL
+// ============================================================
+function countSeverity(findings) {
+  const out = { critical:0, high:0, medium:0, low:0, total: findings.length };
+  for (const f of findings) if (out[f.severity] !== undefined) out[f.severity]++;
+  return out;
+}
+function sevShort(s) { return ({critical:'crit', high:'high', medium:'med', low:'low'})[s] || 'low'; }
+function sevLabel(s) { return (s||'').toUpperCase(); }
+function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : ''; }
+function escapeHtml(s) { return String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function slug(s) { return String(s).replace(/[^\w-]+/g, '-').slice(0, 48); }
+
+// Briefing card toggle — click anywhere on the header to expand/collapse;
+// update the toggle label text to reflect the current state.
+document.querySelectorAll('[data-briefing]').forEach(card => {
+  const head = card.querySelector('.briefing-head');
+  const label = card.querySelector('.briefing-toggle span');
+  const updateLabel = () => { if (label) label.textContent = card.classList.contains('open') ? 'Hide' : 'Show'; };
+  head.addEventListener('click', () => { card.classList.toggle('open'); updateLabel(); });
+  updateLabel();
+});
+
+// Expose for programmatic testing / debugging
+window.atlas = { state, renderReview, switchView, runGapAnalysis };
+
+boot();
+</script>
+</body>
+</html>
