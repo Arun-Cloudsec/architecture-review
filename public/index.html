@@ -342,6 +342,28 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
 .toast{position:fixed;bottom:20px;right:20px;background:var(--bg-card);border:1px solid var(--border-str);border-radius:6px;padding:12px 16px;font-size:12.5px;color:var(--text);box-shadow:0 4px 16px rgba(0,0,0,0.4);z-index:100;max-width:340px;opacity:0;transform:translateY(10px);pointer-events:none;transition:opacity 0.25s,transform 0.25s}
 .toast.show{opacity:1;transform:translateY(0);pointer-events:auto}
 .toast.err{border-color:var(--crit)}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:1000}
+.modal-overlay.show{display:flex}
+.modal{background:var(--bg-elev);border:1px solid var(--border);border-radius:8px;width:90%;max-width:480px;box-shadow:0 12px 48px rgba(0,0,0,0.5)}
+.modal-head{padding:20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.modal-head h2{font-size:18px;font-weight:600;color:var(--text);margin:0}
+.modal-close{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px;padding:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center;transition:color 0.15s}
+.modal-close:hover{color:var(--text)}
+.modal-body{padding:24px}
+.modal-footer{padding:20px;border-top:1px solid var(--border);display:flex;gap:12px;justify-content:flex-end}
+.form-group{margin-bottom:20px}
+.form-group:last-child{margin-bottom:0}
+.form-label{display:block;margin-bottom:8px;font-size:12.5px;font-weight:600;color:var(--text)}
+.form-input{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-size:13px;font-family:inherit;transition:border-color 0.15s}
+.form-input:focus{outline:none;border-color:var(--a)}
+.form-input::placeholder{color:var(--text-faint)}
+.form-hint{display:block;margin-top:6px;font-size:11.5px;color:var(--text-faint);font-family:'IBM Plex Mono',monospace}
+.api-status{display:flex;align-items:center;gap:8px;padding:12px;background:rgba(110,231,183,0.1);border:1px solid rgba(110,231,183,0.3);border-radius:6px;margin-bottom:16px;font-size:12px;color:var(--c)}
+.api-status.error{background:rgba(255,77,109,0.1);border-color:rgba(255,77,109,0.3);color:var(--crit)}
+.api-status-dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 2s infinite}
+.api-status.error .api-status-dot{animation:none}
 </style>
 </head>
 <body>
@@ -370,6 +392,9 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
         <span class="dot"></span>
         <span id="provider-label">—</span>
       </div>
+      <button class="btn btn-ghost" id="settings-btn" title="API Configuration">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke-width:2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M4.22 4.22l4.24 4.24m3.08 3.08l4.24 4.24M1 12h6m6 0h6M4.22 19.78l4.24-4.24m3.08-3.08l4.24-4.24M19.78 19.78l-4.24-4.24m-3.08-3.08l-4.24-4.24M19.78 4.22l-4.24 4.24m-3.08 3.08l-4.24 4.24"/></svg>
+      </button>
     </div>
   </header>
 
@@ -757,6 +782,45 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
 
 <div class="toast" id="toast"></div>
 
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>API Configuration</h2>
+      <button class="modal-close" id="modal-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="api-status" class="api-status" style="display:none">
+        <span class="api-status-dot"></span>
+        <span id="api-status-text">Testing API connection...</span>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">API Endpoint URL</label>
+        <input type="text" class="form-input" id="api-endpoint" placeholder="https://your-api.example.com" />
+        <span class="form-hint">Base URL for API calls (e.g., http://localhost:8000)</span>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">API Key</label>
+        <input type="password" class="form-input" id="api-key" placeholder="sk-xxxxxxxxxxxxxxxxxx" />
+        <span class="form-hint">Your API key for authentication</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">
+          <input type="checkbox" id="show-key" style="margin-right:8px;cursor:pointer;vertical-align:middle">
+          Show API Key
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="modal-cancel">Cancel</button>
+      <button class="btn btn-primary" id="modal-save">Save & Test</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // STATE
@@ -774,10 +838,37 @@ const state = {
 };
 
 // ============================================================
+// API CONFIGURATION
+// ============================================================
+const config = {
+  endpoint: localStorage.getItem('atlas_api_endpoint') || '',
+  apiKey: localStorage.getItem('atlas_api_key') || '',
+};
+
+function saveConfig() {
+  localStorage.setItem('atlas_api_endpoint', config.endpoint);
+  localStorage.setItem('atlas_api_key', config.apiKey);
+}
+
+function getFullUrl(path) {
+  const base = config.endpoint || '';
+  if (!base) return path;
+  return base.replace(/\/$/, '') + path;
+}
+
+// ============================================================
 // HTTP
 // ============================================================
 async function api(path, opts = {}) {
-  const r = await fetch(path, opts);
+  const url = getFullUrl(path);
+  const headers = opts.headers || {};
+  
+  if (config.apiKey) {
+    headers['Authorization'] = `Bearer ${config.apiKey}`;
+  }
+  
+  const fullOpts = { ...opts, headers };
+  const r = await fetch(url, fullOpts);
   if (!r.ok) {
     let msg = `${r.status} ${r.statusText}`;
     try { const j = await r.json(); if (j.error) msg = j.error; } catch(_) {}
@@ -787,7 +878,14 @@ async function api(path, opts = {}) {
 }
 
 async function apiForm(path, formData) {
-  const r = await fetch(path, { method: 'POST', body: formData });
+  const url = getFullUrl(path);
+  const headers = {};
+  
+  if (config.apiKey) {
+    headers['Authorization'] = `Bearer ${config.apiKey}`;
+  }
+  
+  const r = await fetch(url, { method: 'POST', body: formData, headers });
   if (!r.ok) {
     let msg = `${r.status} ${r.statusText}`;
     try { const j = await r.json(); if (j.error) msg = j.error; } catch(_) {}
@@ -795,6 +893,74 @@ async function apiForm(path, formData) {
   }
   return r.json();
 }
+
+// ============================================================
+// SETTINGS MODAL
+// ============================================================
+function openSettings() {
+  const modal = document.getElementById('settings-modal');
+  document.getElementById('api-endpoint').value = config.endpoint;
+  document.getElementById('api-key').value = config.apiKey;
+  document.getElementById('api-status').style.display = 'none';
+  modal.classList.add('show');
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('show');
+}
+
+function toggleShowKey() {
+  const input = document.getElementById('api-key');
+  const checkbox = document.getElementById('show-key');
+  input.type = checkbox.checked ? 'text' : 'password';
+}
+
+async function testAndSaveConfig() {
+  const endpoint = document.getElementById('api-endpoint').value.trim();
+  const apiKey = document.getElementById('api-key').value.trim();
+  const statusDiv = document.getElementById('api-status');
+  const statusText = document.getElementById('api-status-text');
+  
+  // Update config
+  config.endpoint = endpoint;
+  config.apiKey = apiKey;
+  saveConfig();
+  
+  // Test connection
+  statusDiv.style.display = 'flex';
+  statusDiv.classList.remove('error');
+  statusText.textContent = 'Testing API connection...';
+  
+  try {
+    const h = await api('/api/health');
+    statusText.textContent = '✓ Connection successful!';
+    statusDiv.classList.remove('error');
+    
+    setTimeout(() => {
+      closeSettings();
+      showToast('API configuration saved!');
+      // Reload health data
+      renderProvider(h);
+    }, 800);
+  } catch (e) {
+    statusDiv.classList.add('error');
+    statusText.textContent = '✗ Connection failed: ' + e.message;
+  }
+}
+
+// Modal event listeners
+document.getElementById('settings-btn').addEventListener('click', openSettings);
+document.getElementById('modal-close').addEventListener('click', closeSettings);
+document.getElementById('modal-cancel').addEventListener('click', closeSettings);
+document.getElementById('modal-save').addEventListener('click', testAndSaveConfig);
+document.getElementById('show-key').addEventListener('change', toggleShowKey);
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('settings-modal').classList.contains('show')) {
+    closeSettings();
+  }
+});
 
 // ============================================================
 // UI — views and nav
